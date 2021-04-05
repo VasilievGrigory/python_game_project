@@ -1,22 +1,33 @@
-import curses
 import time
+import curses
+from enum import Enum
 from curses.textpad import Textbox, rectangle
 
+class Level(Enum):
+        EASY = "EASY"
+        MEDIUM = "MEDIUM"
+        HARD = "HARD"
+
 class Game():
-    level = 0
-    l = ["Easy", "Medium", "Hard"]
-    player = ""
-    time = 0
-    mistakes = 0
-    history = {}
-    attempt = 0
-    exit = False
+    
+    def __init__(self):
+        self.level = Level.EASY.value 
+        self.l = ["Easy", "Medium", "Hard"]
+        self.player = ""
+        self.time = 0
+        self.mistakes = 0
+        self.history = {}
+        self.attempt = 0
+        self.exit = False
+        self.is_failed = False
+
     def start_game(self, main):
         curses.noecho()
         main.addstr("Hi! How are you? Ready to start? ")
         main.getch()
         main.clear()
-        main.addstr(0, 0, "Enter YOUR name: (hit Ctrl-G to send)")
+        main.addstr(0, 0, "Enter YOUR name:"
+                         "(hit Ctrl-G to send)")
         editwin = curses.newwin(5,30, 2,1)
         rectangle(main, 1,0, 1+5+1, 1+30+1)
         main.refresh()
@@ -25,34 +36,43 @@ class Game():
         name = box.gather()
         main.clear()
         self.player = name
-        while (not self.exit):
-            self.attempt += 1
-            self.level = self.pick_mod(main)
+        while not self.exit:
+            self.main_part(main)
+
+    def main_part(self, main):
+        self.attempt += 1
+        level_  = self.pick_mode(main)
+        if level_ == 0:
+            self.level = Level.EASY.value
+        elif level_ == 1:
+            self.level = Level.MEDIUM.value
+        else:
+            self.level = Level.HARD.value
+        main.clear()
+        main.addstr("Your pick is {}".format(self.level))
+        main.addstr("\nNow, we are ready to start!\n"
+                          "Good luck, {}".format(self.player))
+        main.getch()
+        self.mode(main, self.level)
+        main.addstr("\nPress 'p', if you want play one more time, press"
+                         " 'h' to see history, or press any another key to leave\n\n")
+        ans = main.getch()
+        if chr(ans) == 'p':
             main.clear()
-            main.addstr("Your pick is ")
-            main.addstr(self.l[self.level])
-            main.addstr("\nNow, we are ready to start!\nGood luck, ")
-            main.addstr(self.player)
-            main.getch()
-            self.mode(main, self.level)
-            main.addstr("\nPress 'p', if you want play one more time, press 'h' to see history, or press any another key to leave\n\n")
-            ans = main.getch()
-            if ans == ord('p'):
+        elif chr(ans) == 'h':
+            main.addstr(str(self.history))
+            main.addstr('\n')
+            main.addstr("\nPress 'p', if you want play one more time,"
+                              " or press any another key to leave\n")
+            ans1 = main.getch()
+            if chr(ans1) == 'p':
                 main.clear()
-            elif ans == ord('h'):
-                main.addstr(str(self.history))
-                main.addstr('\n')
-                main.addstr("\nPress 'p', if you want play one more time, or press any another key to leave\n")
-                ans1 = main.getch()
-                if ans1 == ord('p'):
-                    main.clear()
-                else:
-                    self.exit = True
             else:
                 self.exit = True
+        else:
+            self.exit = True
 
-
-    def pick_mod(self, main):
+    def pick_mode(self, main):
         curses.noecho()
         exit = False
         choice = 0
@@ -68,28 +88,44 @@ class Game():
             main.addstr("\n(To iterate use: KEY_LEFT and KEY_RIGHT)")
             main.addstr("\n(To pick click KEY_UP)")
             ans = main.getch()
-            if ans == ord('D'):
+            if chr(ans) == 'D':
                 if choice >= 1:
                     choice -= 1
-            elif ans == ord('C'):
+            elif chr(ans) == 'C':
                 if choice != 2:
                     choice += 1
-            elif ans == ord('A'):
+            elif chr(ans) == 'A':
                 exit = True
         return choice
 
-    def mode(self, main, mode = 0):
-        if mode == 0:
-            f = open('easy_mode.txt', 'r')
-            s = f.read()
-        elif mode == 1:
-            f = open('medium_mode.txt', 'r')
-            s = f.read()
+    def mode(self, main, mode_ = Level.EASY.value):
+        s = self.reading_mode_file(mode_)
+        self.player_printing(main, s)
+        main.addstr("Your results:\nTime: {}\n"
+                          "Mistakes: {}\n".format(str(self.time),str(self.mistakes)))
+        if self.is_failed:
+            self.history[self.attempt] = [self.level, self.time, self.mistakes, "failed"]
         else:
-            f = open('hard_mode.txt', 'r')
-            s = f.read()
+             self.history[self.attempt] = [self.level, self.time, self.mistakes, "completed"]
+        self.time = 0
+        self.mistakes = 0
+        main.getch()
+
+    def reading_mode_file(self, mode_ = Level.EASY.value):
+        if mode_ == Level.EASY.value:
+            with open('easy_mode.txt', mode = 'r') as f:
+                s = f.read()
+        elif mode_ == Level.MEDIUM.value:
+           with open('medium_mode.txt', mode = 'r') as f:
+                s = f.read()
+        else:
+            with open('hard_mode.txt', mode = 'r') as f:
+                s = f.read()
+        return s
+
+    def player_printing(self, main, s):
+        start = time.time()
         s_const = s
-        start = time.time() 
         while len(s) >= 1:
             main.clear()
             main.addstr(s_const)
@@ -101,44 +137,29 @@ class Game():
             else:
                 s_curr = s[:s.find(' ') + 1]
                 s = s[s.find(' ') + 1:]
-            main.addstr("If you want to leave, press 'b'\n") 
+            main.addstr("If you want to leave, press 'b'\n")
             main.addstr(s_curr)
             main.addstr('\n')
             temp = 0
-            is_failed = False
-            f = "failed"
-            c = "completed"
             while temp < len(s_curr):
                 ans = main.getch()
-                if ord(s_curr[temp]) == ans:
+                if s_curr[temp] == chr(ans):
                     main.addstr(s_curr[temp])
                     temp += 1
-                elif ord('b') == ans:
-                    is_failed = True
+                elif 'b' == chr(ans):
+                    self.is_failed = True
                     s = ""
                     break
                 else:
                     self.mistakes += 1
-        main.clear()
         self.time = time.time() - start
-        main.addstr('\n')
-        main.addstr("Your results:\n")
-        main.addstr("Time: ")
-        main.addstr(str(self.time))
-        main.addstr('\n')
-        main.addstr("Mistakes: ")
-        main.addstr(str(self.mistakes))
-        main.addstr('\n')
-        if is_failed:
-            self.history[self.attempt] = [self.l[self.level], self.time, self.mistakes, f]
-        else:
-             self.history[self.attempt] = [self.l[self.level], self.time, self.mistakes, c]
-        self.time = 0
-        self.mistakes = 0
-        main.getch()
-        return
+        main.clear()
 
-main = curses.initscr()
-g = Game()
-g.start_game(main)
-curses.endwin()
+def main():
+    main = curses.initscr()
+    g = Game()
+    g.start_game(main)
+    curses.endwin()
+
+if __name__ == "__main__":
+    main()
